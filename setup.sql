@@ -81,3 +81,80 @@ create table public.tags (
   name text not null,
   constraint tags_pkey primary key (id)
 ) TABLESPACE pg_default;
+
+
+
+
+
+-- Ivorlangus contrib
+
+CREATE TABLE platforms (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT
+);
+
+CREATE TABLE genres (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT
+);
+
+CREATE TABLE tags (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL
+);
+
+CREATE TABLE game_tags (
+  game_id INT REFERENCES games(id) ON DELETE CASCADE,
+  tag_id INT REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (game_id, tag_id)
+);
+
+CREATE TABLE game_genres (
+  game_id INT REFERENCES games(id) ON DELETE CASCADE,
+  genre_id INT REFERENCES genres(id) ON DELETE CASCADE,
+  PRIMARY KEY (game_id, genre_id)
+);
+
+CREATE TABLE game_platforms (
+  game_id INT REFERENCES games(id) ON DELETE CASCADE,
+  platform_id INT REFERENCES platforms(id) ON DELETE CASCADE,
+  PRIMARY KEY (game_id, platform_id)
+);
+
+-- Sample data
+INSERT INTO game_genres (game_id, genre_id) VALUES
+(1, 1), (2, 2), (3, 3), (4, 5), (5, 4);
+
+INSERT INTO game_platforms (game_id, platform_id) VALUES
+(1, 1), (1, 2), (2, 1), (2, 2), (3, 1),
+(3, 2), (4, 1), (5, 1), (5, 2);
+
+INSERT INTO platforms (name, description) VALUES
+('PC', 'Personal Computer gaming via Steam, Epic Games etc.'),
+('PS5', 'Sony PlayStation 5 console'),
+('Xbox Series X', 'Microsoft Xbox Series X console'),
+('Nintendo Switch', 'Nintendo handheld/home console');
+
+INSERT INTO genres (name, description) VALUES
+('Action', 'Fast-paced games focused on combat and reflexes'),
+('Adventure', 'Exploration and story-driven games'),
+('Sports', 'Simulation of real-world sports'),
+('Horror', 'Scary, survival-focused games'),
+('Tactical Shooter', 'Team-based strategic shooting games');
+
+INSERT INTO tags (name) VALUES
+('Multiplayer'),
+('Open World'),
+('Story Rich'),
+('Difficult'),
+('Family Friendly'),
+('Online Only');
+
+INSERT INTO game_tags (game_id, tag_id) VALUES
+(1, 1), (1, 2),
+(2, 2), (2, 4),
+(3, 1), (3, 5),
+(4, 1), (4, 6),
+(5, 3), (5, 4);
