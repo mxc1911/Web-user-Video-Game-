@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tags – Game Reviews</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    nav { margin-bottom: 20px; }
+    nav a { margin-right: 15px; color: #0066cc; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 15px; }
+    th { background: #333; color: white; padding: 10px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; }
+    tr:hover { background: #f0f0f0; }
+    form { background: white; padding: 20px; margin-top: 20px; border: 1px solid #ddd; border-radius: 4px; }
+    form h2 { margin-top: 0; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
+    button { margin-top: 15px; padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    button:hover { background: #0052a3; }
+    .btn-delete { background: #cc0000; margin-left: 8px; padding: 5px 10px; margin-top: 0; }
+    .btn-edit { background: #ff8800; padding: 5px 10px; margin-top: 0; }
+    .btn-cancel { background: #666; padding: 8px 16px; margin-left: 10px; }
+    .msg { padding: 10px; margin: 10px 0; border-radius: 3px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  </style>
+</head>
+<body>
+  <h1>Tags</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="games.html">Games</a>
+    <a href="reviews.html">Reviews</a>
+    <a href="platforms.html">Platforms</a>
+    <a href="genres.html">Genres</a>
+    <a href="tags.html">Tags</a>
+    <a href="game_tags.html">Game Tags</a>
+    <a href="game_genres.html">Game Genres</a>
+    <a href="game_platforms.html">Game Platforms</a>
+  </nav>
+
+  <div id="msg" class="msg" style="display:none"></div>
+
+  <h2>All Tags</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Actions</th></tr></thead>
+    <tbody id="table-body"><tr><td colspan="3">Loading...</td></tr></tbody>
+  </table>
+
+  <form id="tag-form">
+    <h2 id="form-heading">Add New Tag</h2>
+    <input type="hidden" id="edit-id"/>
+    <label for="name">Tag Name</label>
+    <input type="text" id="name" placeholder="e.g. Multiplayer" required/>
+    <div>
+      <button type="button" onclick="submitForm()">Save Tag</button>
+      <button type="button" class="btn-cancel" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
+    </div>
+  </form>
+
+  <script>
+    const URL = 'https://nkwvpmmawauulkprgsjs.supabase.co';
+    const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rd3ZwbW1hd2F1dWxrcHJnc2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzA2MzEsImV4cCI6MjA5MTI0NjYzMX0.Q6EyWN99O2HKdZsO4QsN208Nn6sGCdVFBqMrCc33Gzc';
+    const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+    async function loadTags() {
+      const res = await fetch(URL + '/rest/v1/tags?select=*&order=id.asc', { headers: H });
+      const data = await res.json();
+      const tbody = document.getElementById('table-body');
+      if (!data.length) { tbody.innerHTML = '<tr><td colspan="3">No tags found.</td></tr>'; return; }
+      tbody.innerHTML = data.map(t => `<tr>
+        <td>${t.id}</td><td>${t.name}</td>
+        <td>
+          <button class="btn-edit" onclick="editTag(${t.id},'${esc(t.name)}')">Edit</button>
+          <button class="btn-delete" onclick="deleteTag(${t.id})">Delete</button>
+        </td>
+      </tr>`).join('');
+    }
+
+    function esc(s) { return (s||'').replace(/'/g,"\\'"); }
+
+    async function submitForm() {
+      const id = document.getElementById('edit-id').value;
+      const name = document.getElementById('name').value.trim();
+      if (!name) { alert('Name is required'); return; }
+      const body = JSON.stringify({ name });
+      if (id) {
+        await fetch(URL + '/rest/v1/tags?id=eq.' + id, { method: 'PATCH', headers: H, body });
+        showMsg('Tag updated!');
+      } else {
+        await fetch(URL + '/rest/v1/tags', { method: 'POST', headers: H, body });
+        showMsg('Tag added!');
+      }
+      cancelEdit(); loadTags();
+    }
+
+    async function deleteTag(id) {
+      if (!confirm('Delete this tag?')) return;
+      await fetch(URL + '/rest/v1/tags?id=eq.' + id, { method: 'DELETE', headers: H });
+      showMsg('Tag deleted.'); loadTags();
+    }
+
+    function editTag(id, name) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('name').value = name;
+      document.getElementById('form-heading').textContent = 'Edit Tag';
+      document.getElementById('cancel-btn').style.display = 'inline';
+      window.scrollTo(0, document.getElementById('tag-form').offsetTop);
+    }
+
+    function cancelEdit() {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('name').value = '';
+      document.getElementById('form-heading').textContent = 'Add New Tag';
+      document.getElementById('cancel-btn').style.display = 'none';
+    }
+
+    function showMsg(text) {
+      const m = document.getElementById('msg');
+      m.textContent = text; m.style.display = 'block';
+      setTimeout(() => m.style.display = 'none', 3000);
+    }
+
+    loadTags();
+  </script>
+</body>
+</html>

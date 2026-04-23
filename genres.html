@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Genres – Game Reviews</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    nav { margin-bottom: 20px; }
+    nav a { margin-right: 15px; color: #0066cc; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 15px; }
+    th { background: #333; color: white; padding: 10px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; }
+    tr:hover { background: #f0f0f0; }
+    form { background: white; padding: 20px; margin-top: 20px; border: 1px solid #ddd; border-radius: 4px; }
+    form h2 { margin-top: 0; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
+    button { margin-top: 15px; padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    button:hover { background: #0052a3; }
+    .btn-delete { background: #cc0000; margin-left: 8px; padding: 5px 10px; margin-top: 0; }
+    .btn-edit { background: #ff8800; padding: 5px 10px; margin-top: 0; }
+    .btn-cancel { background: #666; padding: 8px 16px; margin-left: 10px; }
+    .msg { padding: 10px; margin: 10px 0; border-radius: 3px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  </style>
+</head>
+<body>
+  <h1>Genres</h1>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="games.html">Games</a>
+    <a href="reviews.html">Reviews</a>
+    <a href="platforms.html">Platforms</a>
+    <a href="genres.html">Genres</a>
+    <a href="tags.html">Tags</a>
+    <a href="game_tags.html">Game Tags</a>
+    <a href="game_genres.html">Game Genres</a>
+    <a href="game_platforms.html">Game Platforms</a>
+  </nav>
+
+  <div id="msg" class="msg" style="display:none"></div>
+
+  <h2>All Genres</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Name</th><th>Description</th><th>Actions</th></tr></thead>
+    <tbody id="table-body"><tr><td colspan="4">Loading...</td></tr></tbody>
+  </table>
+
+  <form id="genre-form">
+    <h2 id="form-heading">Add New Genre</h2>
+    <input type="hidden" id="edit-id"/>
+    <label for="name">Genre Name</label>
+    <input type="text" id="name" placeholder="e.g. Action" required/>
+    <label for="description">Description</label>
+    <textarea id="description" rows="3" placeholder="Brief description of the genre"></textarea>
+    <div>
+      <button type="button" onclick="submitForm()">Save Genre</button>
+      <button type="button" class="btn-cancel" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
+    </div>
+  </form>
+
+  <script>
+    const URL = 'https://nkwvpmmawauulkprgsjs.supabase.co';
+    const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rd3ZwbW1hd2F1dWxrcHJnc2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzA2MzEsImV4cCI6MjA5MTI0NjYzMX0.Q6EyWN99O2HKdZsO4QsN208Nn6sGCdVFBqMrCc33Gzc';
+    const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+    async function loadGenres() {
+      const res = await fetch(URL + '/rest/v1/genres?select=*&order=id.asc', { headers: H });
+      const data = await res.json();
+      const tbody = document.getElementById('table-body');
+      if (!data.length) { tbody.innerHTML = '<tr><td colspan="4">No genres found.</td></tr>'; return; }
+      tbody.innerHTML = data.map(g => `<tr>
+        <td>${g.id}</td><td>${g.name}</td><td>${g.description || '-'}</td>
+        <td>
+          <button class="btn-edit" onclick="editGenre(${g.id},'${esc(g.name)}','${esc(g.description)}')">Edit</button>
+          <button class="btn-delete" onclick="deleteGenre(${g.id})">Delete</button>
+        </td>
+      </tr>`).join('');
+    }
+
+    function esc(s) { return (s||'').replace(/'/g,"\\'"); }
+
+    async function submitForm() {
+      const id = document.getElementById('edit-id').value;
+      const name = document.getElementById('name').value.trim();
+      const description = document.getElementById('description').value.trim();
+      if (!name) { alert('Name is required'); return; }
+      const body = JSON.stringify({ name, description });
+      if (id) {
+        await fetch(URL + '/rest/v1/genres?id=eq.' + id, { method: 'PATCH', headers: H, body });
+        showMsg('Genre updated!');
+      } else {
+        await fetch(URL + '/rest/v1/genres', { method: 'POST', headers: H, body });
+        showMsg('Genre added!');
+      }
+      cancelEdit(); loadGenres();
+    }
+
+    async function deleteGenre(id) {
+      if (!confirm('Delete this genre?')) return;
+      await fetch(URL + '/rest/v1/genres?id=eq.' + id, { method: 'DELETE', headers: H });
+      showMsg('Genre deleted.'); loadGenres();
+    }
+
+    function editGenre(id, name, description) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('name').value = name;
+      document.getElementById('description').value = description;
+      document.getElementById('form-heading').textContent = 'Edit Genre';
+      document.getElementById('cancel-btn').style.display = 'inline';
+      window.scrollTo(0, document.getElementById('genre-form').offsetTop);
+    }
+
+    function cancelEdit() {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('name').value = '';
+      document.getElementById('description').value = '';
+      document.getElementById('form-heading').textContent = 'Add New Genre';
+      document.getElementById('cancel-btn').style.display = 'none';
+    }
+
+    function showMsg(text) {
+      const m = document.getElementById('msg');
+      m.textContent = text; m.style.display = 'block';
+      setTimeout(() => m.style.display = 'none', 3000);
+    }
+
+    loadGenres();
+  </script>
+</body>
+</html>
