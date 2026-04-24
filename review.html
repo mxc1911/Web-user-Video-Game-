@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Reviews – Game Reviews</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+    h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    nav { margin-bottom: 20px; }
+    nav a { margin-right: 15px; color: #0066cc; text-decoration: none; }
+    table { width: 100%; border-collapse: collapse; background: white; margin-top: 15px; }
+    th { background: #333; color: white; padding: 10px; text-align: left; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; }
+    form { background: white; padding: 20px; margin-top: 20px; border: 1px solid #ddd; border-radius: 4px; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
+    button { margin-top: 15px; padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .btn-delete { background: #cc0000; margin-left: 8px; padding: 5px 10px; margin-top: 0; }
+    .btn-edit { background: #ff8800; padding: 5px 10px; margin-top: 0; }
+    .btn-cancel { background: #666; padding: 8px 16px; margin-left: 10px; }
+    .msg { padding: 10px; margin: 10px 0; border-radius: 3px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .error { background: #f8d7da; color: #721c24; border-color: #f5c6cb; }
+  </style>
+</head>
+<body>
+  <h1>⭐ Reviews</h1>
+  <nav>
+    <a href="index.html">Home</a><a href="games.html">Games</a><a href="reviews.html">Reviews</a>
+    <a href="platforms.html">Platforms</a><a href="genres.html">Genres</a><a href="tags.html">Tags</a>
+    <a href="game_tags.html">Game Tags</a><a href="game_genres.html">Game Genres</a><a href="game_platforms.html">Game Platforms</a>
+  </nav>
+
+  <div id="msg" class="msg" style="display:none"></div>
+  <h2>All Reviews <span id="review-count" style="font-size:14px;color:#666"></span></h2>
+
+  <table>
+    <thead><tr><th>ID</th><th>Game</th><th>Name</th><th>Rating</th><th>Actions</th></tr></thead>
+    <tbody id="table-body"><tr><td colspan="5">Loading...</td></tr></tbody>
+  </table>
+
+  <form id="review-form">
+    <h2 id="form-heading">Add New Review</h2>
+    <input type="hidden" id="edit-id"/>
+
+    <label for="game-id">Game</label>
+    <select id="game-id"><option value="">-- Choose a game --</option></select>
+
+    <label for="name">Name</label>
+    <input type="text" id="name" placeholder="Reviewer name"/>
+
+    <label for="rating">Rating</label>
+    <input type="number" id="rating" min="1" max="10" placeholder="1 to 10"/>
+
+    <button type="button" onclick="submitReview()">Save Review</button>
+    <button type="button" class="btn-cancel" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
+  </form>
+
+  <script>
+    const URL = 'https://nkwvpmmawauulkprgsjs.supabase.co';
+    const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rd3ZwbW1hd2F1dWxrcHJnc2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzA2MzEsImV4cCI6MjA5MTI0NjYzMX0.Q6EyWN99O2HKdZsO4QsN208Nn6sGCdVFBqMrCc33Gzc';
+    const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+    let games = [], reviews = [];
+
+    async function loadPage() { await loadGames(); await loadReviews(); }
+
+    async function loadGames() {
+      const res = await fetch(URL + '/rest/v1/games?select=*&order=title.asc', { headers: H });
+      games = await res.json();
+      const select = document.getElementById('game-id');
+      select.innerHTML = '<option value="">-- Choose a game --</option>';
+      games.forEach(g => select.innerHTML += `<option value="${g.id}">${escapeHtml(g.title)}</option>`);
+    }
+
+    async function loadReviews() {
+      const res = await fetch(URL + '/rest/v1/reviews?select=*&order=id.asc', { headers: H });
+      reviews = await res.json();
+      renderReviews();
+    }
+
+    function renderReviews() {
+      const gameMap = Object.fromEntries(games.map(g => [g.id, g.title]));
+      const tbody = document.getElementById('table-body');
+      document.getElementById('review-count').textContent = '(' + reviews.length + ')';
+
+      if (!reviews.length) {
+        tbody.innerHTML = '<tr><td colspan="5">No reviews found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = reviews.map(r => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${escapeHtml(gameMap[r.game_id] || 'Unknown game')}</td>
+          <td>${escapeHtml(r.name || '-')}</td>
+          <td><strong>${r.rating}/10</strong></td>
+          <td>
+            <button class="btn-edit" onclick="editReview(${r.id}, ${r.game_id}, ${r.rating}, '${escapeHtml(r.name || '')}')">Edit</button>
+            <button class="btn-delete" onclick="deleteReview(${r.id})">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function submitReview() {
+      const id = document.getElementById('edit-id').value;
+      const gameId = document.getElementById('game-id').value;
+      const rating = document.getElementById('rating').value;
+      const name = document.getElementById('name').value.trim();
+
+      if (!gameId) { alert('Choose a game'); return; }
+      if (!rating || rating < 1 || rating > 10) { alert('Rating must be 1 to 10'); return; }
+
+      const body = JSON.stringify({
+        game_id: Number(gameId),
+        rating: Number(rating),
+        name: name
+      });
+
+      const res = id
+        ? await fetch(URL + '/rest/v1/reviews?id=eq.' + id, { method: 'PATCH', headers: H, body })
+        : await fetch(URL + '/rest/v1/reviews', { method: 'POST', headers: H, body });
+
+      if (!res.ok) { showMsg('Error: ' + await res.text(), true); return; }
+
+      showMsg(id ? 'Review updated!' : 'Review added!');
+      cancelEdit();
+      await loadReviews();
+    }
+
+    function editReview(id, gameId, rating, name) {
+      document.getElementById('edit-id').value = id;
+      document.getElementById('game-id').value = gameId;
+      document.getElementById('rating').value = rating;
+      document.getElementById('name').value = name;
+      document.getElementById('form-heading').textContent = 'Edit Review';
+      document.getElementById('cancel-btn').style.display = 'inline';
+      document.getElementById('review-form').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+      document.getElementById('edit-id').value = '';
+      document.getElementById('game-id').value = '';
+      document.getElementById('rating').value = '';
+      document.getElementById('name').value = '';
+      document.getElementById('form-heading').textContent = 'Add New Review';
+      document.getElementById('cancel-btn').style.display = 'none';
+    }
+
+    async function deleteReview(id) {
+      if (!confirm('Delete this review?')) return;
+      const res = await fetch(URL + '/rest/v1/reviews?id=eq.' + id, { method: 'DELETE', headers: H });
+      if (!res.ok) { showMsg('Error: ' + await res.text(), true); return; }
+      showMsg('Review deleted.');
+      await loadReviews();
+    }
+
+    function showMsg(text, error = false) {
+      const msg = document.getElementById('msg');
+      msg.textContent = text;
+      msg.className = error ? 'msg error' : 'msg';
+      msg.style.display = 'block';
+      setTimeout(() => msg.style.display = 'none', 4000);
+    }
+
+    function escapeHtml(text) {
+      return String(text || '').replace(/[&<>"']/g, m =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[m])
+      );
+    }
+
+    loadPage();
+  </script>
+</body>
+</html>
