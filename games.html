@@ -17,14 +17,14 @@
     form { background: white; padding: 20px; margin-top: 20px; border: 1px solid #ddd; border-radius: 4px; }
     form h2 { margin-top: 0; }
     label { display: block; margin-top: 10px; font-weight: bold; }
-    input { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 4px; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; }
     button { margin-top: 15px; padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer; }
     button:hover { background: #0052a3; }
     .btn-delete { background: #cc0000; margin-left: 8px; padding: 5px 10px; margin-top: 0; }
     .btn-edit   { background: #ff8800; padding: 5px 10px; margin-top: 0; }
     .btn-cancel { background: #666; padding: 8px 16px; margin-left: 10px; }
     .msg { padding: 10px; margin: 10px 0; border-radius: 3px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .chip { display: inline-block; background: #e8f0fe; color: #0066cc; border-radius: 12px; padding: 2px 8px; font-size: 0.78em; margin: 2px; }
+    .chip { display: inline-block; background: #e8f0fe; color: #0066cc; border-radius: 12px; padding: 2px 8px; font-size: 0.78em; margin: 2px 2px 0 0; }
     .chip-platform { background: #fff3e0; color: #e65100; }
     #search-bar { width: 100%; padding: 8px; margin: 10px 0; border: 1px solid #ccc; border-radius: 3px; box-sizing: border-box; font-size: 1em; }
     .table-header { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
@@ -55,7 +55,14 @@
 
   <table>
     <thead>
-      <tr><th>ID</th><th>Title</th><th>Release Year</th><th>Genres</th><th>Platforms</th><th>Actions</th></tr>
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Release Year</th>
+        <th>Genres</th>
+        <th>Platforms</th>
+        <th>Actions</th>
+      </tr>
     </thead>
     <tbody id="table-body"><tr><td colspan="6">Loading...</td></tr></tbody>
   </table>
@@ -63,10 +70,13 @@
   <form id="game-form">
     <h2 id="form-heading">Add New Game</h2>
     <input type="hidden" id="edit-id"/>
-    <label>Game Title *</label>
-    <input type="text" id="title" placeholder="e.g. The Legend of Zelda"/>
-    <label>Release Year</label>
+
+    <label for="title">Game Title *</label>
+    <input type="text" id="title" placeholder="e.g. The Legend of Zelda" required/>
+
+    <label for="release-year">Release Year</label>
     <input type="number" id="release-year" placeholder="e.g. 2023" min="1970" max="2030"/>
+
     <div>
       <button type="button" onclick="submitForm()">Save Game</button>
       <button type="button" class="btn-cancel" id="cancel-btn" onclick="cancelEdit()" style="display:none">Cancel</button>
@@ -74,106 +84,118 @@
   </form>
 
   <script>
-    const BASE = 'https://nkwvpmmawauulkprgsjs.supabase.co/rest/v1/';
-    const KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rd3ZwbW1hd2F1dWxrcHJnc2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzA2MzEsImV4cCI6MjA5MTI0NjYzMX0.Q6EyWN99O2HKdZsO4QsN208Nn6sGCdVFBqMrCc33Gzc';
-    const H    = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+    const URL = 'https://nkwvpmmawauulkprgsjs.supabase.co';
+    const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rd3ZwbW1hd2F1dWxrcHJnc2pzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzA2MzEsImV4cCI6MjA5MTI0NjYzMX0.Q6EyWN99O2HKdZsO4QsN208Nn6sGCdVFBqMrCc33Gzc';
+    const H = { 'apikey': KEY, 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
 
-    let allGames = [];
-
-    async function fetchTable(table) {
-      const res = await fetch(BASE + table + '?select=*', { headers: H });
-      return res.json();
-    }
-
-    function buildLookup(rows) {
-      const map = {};
-      for (let i = 0; i < rows.length; i++) map[rows[i].id] = rows[i].name;
-      return map;
-    }
-
-    function buildGameMap(joinRows, idField, nameLookup) {
-      const map = {};
-      for (let i = 0; i < joinRows.length; i++) {
-        const gid = joinRows[i].game_id;
-        if (!map[gid]) map[gid] = [];
-        map[gid].push(nameLookup[joinRows[i][idField]]);
-      }
-      return map;
-    }
+    let allRows = [];
 
     async function loadGames() {
-      const games         = await fetchTable('games?order=id.asc');
-      const genreNames    = buildLookup(await fetchTable('genres'));
-      const platformNames = buildLookup(await fetchTable('platforms'));
-      const genreMap      = buildGameMap(await fetchTable('game_genres'),    'genre_id',    genreNames);
-      const platformMap   = buildGameMap(await fetchTable('game_platforms'), 'platform_id', platformNames);
+      const [gamesRes, gameGenresRes, genresRes, gamePlatformsRes, platformsRes] = await Promise.all([
+        fetch(URL + '/rest/v1/games?select=*&order=id.asc', { headers: H }),
+        fetch(URL + '/rest/v1/game_genres?select=*', { headers: H }),
+        fetch(URL + '/rest/v1/genres?select=*', { headers: H }),
+        fetch(URL + '/rest/v1/game_platforms?select=*', { headers: H }),
+        fetch(URL + '/rest/v1/platforms?select=*', { headers: H }),
+      ]);
 
-      allGames = games.map(function(g) {
-        return { id: g.id, title: g.title, release_year: g.release_year,
-                 genres: genreMap[g.id] || [], platforms: platformMap[g.id] || [] };
-      });
+      const [games, gameGenres, genres, gamePlatforms, platforms] = await Promise.all([
+        gamesRes.json(), gameGenresRes.json(), genresRes.json(),
+        gamePlatformsRes.json(), platformsRes.json()
+      ]);
 
-      document.getElementById('game-count').textContent = allGames.length + ' games';
-      renderTable(allGames);
+      const genreMap    = Object.fromEntries(genres.map(g => [g.id, g.name]));
+      const platformMap = Object.fromEntries(platforms.map(p => [p.id, p.name]));
+
+      const genresByGame    = {};
+      const platformsByGame = {};
+      for (const gg of gameGenres) {
+        if (!genresByGame[gg.game_id]) genresByGame[gg.game_id] = [];
+        genresByGame[gg.game_id].push(genreMap[gg.genre_id] || '?');
+      }
+      for (const gp of gamePlatforms) {
+        if (!platformsByGame[gp.game_id]) platformsByGame[gp.game_id] = [];
+        platformsByGame[gp.game_id].push(platformMap[gp.platform_id] || '?');
+      }
+
+      allRows = games.map(g => ({
+        id: g.id,
+        title: g.title,
+        release_year: g.release_year,
+        genreNames:    genresByGame[g.id]    || [],
+        platformNames: platformsByGame[g.id] || []
+      }));
+
+      document.getElementById('game-count').textContent = `${allRows.length} game${allRows.length !== 1 ? 's' : ''}`;
+      renderTable(allRows);
     }
 
-    function badges(names, cls) {
-      if (!names.length) return '<span style="color:#999">—</span>';
-      return names.map(function(n) { return '<span class="chip ' + cls + '">' + n + '</span>'; }).join('');
-    }
-
-    function renderTable(games) {
+    function renderTable(rows) {
       const tbody = document.getElementById('table-body');
-      if (!games.length) { tbody.innerHTML = '<tr><td colspan="6">No games found.</td></tr>'; return; }
-      tbody.innerHTML = games.map(function(g) {
-        return '<tr><td>' + g.id + '</td><td><strong>' + g.title + '</strong></td>' +
-          '<td>' + (g.release_year || '—') + '</td>' +
-          '<td>' + badges(g.genres, '') + '</td>' +
-          '<td>' + badges(g.platforms, 'chip-platform') + '</td>' +
-          '<td>' +
-            '<button class="btn-edit" onclick="editGame(' + g.id + ',\'' + g.title + '\',' + (g.release_year || '') + ')">Edit</button>' +
-            '<button class="btn-delete" onclick="deleteGame(' + g.id + ')">Delete</button>' +
-          '</td></tr>';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6">No games found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(g => {
+        const genreChips    = g.genreNames.map(n    => `<span class="chip">${n}</span>`).join('') || '<span style="color:#999">—</span>';
+        const platformChips = g.platformNames.map(n => `<span class="chip chip-platform">${n}</span>`).join('') || '<span style="color:#999">—</span>';
+        return `<tr>
+          <td>${g.id}</td>
+          <td><strong>${esc(g.title)}</strong></td>
+          <td>${g.release_year || '—'}</td>
+          <td>${genreChips}</td>
+          <td>${platformChips}</td>
+          <td>
+            <button class="btn-edit"   onclick="editGame(${g.id},'${esc(g.title)}',${g.release_year || ''})">Edit</button>
+            <button class="btn-delete" onclick="deleteGame(${g.id})">Delete</button>
+          </td>
+        </tr>`;
       }).join('');
     }
 
     function filterTable() {
       const q = document.getElementById('search-bar').value.toLowerCase();
-      renderTable(allGames.filter(function(g) { return g.title.toLowerCase().includes(q); }));
+      renderTable(allRows.filter(g => g.title.toLowerCase().includes(q)));
     }
 
-    async function submitForm() {
-      const id    = document.getElementById('edit-id').value;
-      const title = document.getElementById('title').value.trim();
-      const year  = document.getElementById('release-year').value;
-      if (!title) { alert('Please enter a game title.'); return; }
+    function esc(s) { return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,"&#39;"); }
 
-      const body = JSON.stringify({ title: title, release_year: year ? parseInt(year) : null });
+    async function submitForm() {
+      const id          = document.getElementById('edit-id').value;
+      const title       = document.getElementById('title').value.trim();
+      const releaseYear = document.getElementById('release-year').value;
+
+      if (!title) { alert('Game title is required.'); return; }
+
+      const body = JSON.stringify({
+        title,
+        release_year: releaseYear ? parseInt(releaseYear) : null
+      });
 
       if (id) {
-        await fetch(BASE + 'games?id=eq.' + id, { method: 'PATCH', headers: H, body: body });
-        showMsg('Game updated!');
+        await fetch(URL + '/rest/v1/games?id=eq.' + id, { method: 'PATCH', headers: H, body });
+        showMsg('Game updated successfully!');
       } else {
-        await fetch(BASE + 'games', { method: 'POST', headers: H, body: body });
-        showMsg('Game added!');
+        await fetch(URL + '/rest/v1/games', { method: 'POST', headers: H, body });
+        showMsg('Game added successfully!');
       }
       cancelEdit();
       loadGames();
     }
 
     async function deleteGame(id) {
-      if (!confirm('Delete this game and all its linked data?')) return;
-      await fetch(BASE + 'games?id=eq.' + id, { method: 'DELETE', headers: H });
+      if (!confirm('Delete this game? This will also remove all its reviews, genre, platform and tag assignments.')) return;
+      await fetch(URL + '/rest/v1/games?id=eq.' + id, { method: 'DELETE', headers: H });
       showMsg('Game deleted.');
       loadGames();
     }
 
-    function editGame(id, title, year) {
-      document.getElementById('edit-id').value      = id;
-      document.getElementById('title').value        = title;
-      document.getElementById('release-year').value = year || '';
-      document.getElementById('form-heading').textContent        = 'Edit Game';
-      document.getElementById('cancel-btn').style.display        = 'inline';
+    function editGame(id, title, releaseYear) {
+      document.getElementById('edit-id').value       = id;
+      document.getElementById('title').value         = title;
+      document.getElementById('release-year').value  = releaseYear || '';
+      document.getElementById('form-heading').textContent = 'Edit Game';
+      document.getElementById('cancel-btn').style.display = 'inline';
       document.getElementById('game-form').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -187,8 +209,9 @@
 
     function showMsg(text) {
       const m = document.getElementById('msg');
-      m.textContent = text; m.style.display = 'block';
-      setTimeout(function() { m.style.display = 'none'; }, 3000);
+      m.textContent = text;
+      m.style.display = 'block';
+      setTimeout(() => m.style.display = 'none', 3000);
     }
 
     loadGames();
